@@ -1,0 +1,165 @@
+# AgriMarket Recommendation Feature
+# Phase 5: User Acceptance Testing (UAT) Checklist
+# Author: AJEICHEK ABEL NISSI (CT23A010)
+
+## Overview
+
+Five real users test the widget on a staging version of Agromarket.cm.
+Each tester completes the checklist independently. Testers do not need
+technical knowledge — this is a usability and correctness check.
+
+**Staging URL:** https://staging.agromarket.cm
+**Widget version being tested:** Phase 4 v1.0
+**Date:** ______________   Tester name: ______________
+
+---
+
+## Part A — Functional checks (tester + developer together)
+
+Run these before giving the device to the real user. Verify in browser DevTools.
+
+### A1. Widget loads without errors
+- [ ] Open staging.agromarket.cm homepage
+- [ ] Open DevTools → Console
+- [ ] Confirm: **no red errors** related to `agri-widget.js` or `agrimarket-api`
+- [ ] Confirm: network request to `/api/v1/recommendations` returns HTTP 200
+
+### A2. Widget appears on correct pages
+- [ ] Widget **is visible** on homepage (`/en/`)
+- [ ] Widget **is visible** on a category page (e.g. `/en/fruitsetlegumes`)
+- [ ] Widget **is NOT visible** on a product detail page (e.g. `/en/fruitsetlegumes/mangues-a-vendre-2022.html`)
+
+### A3. Widget renders correctly
+- [ ] Heading "Recommandé pour vous" (or "Recommended for you" in English) appears
+- [ ] Exactly 5 product cards are shown
+- [ ] Each card has: product title, category label, image or placeholder, and "Voir l'annonce" button
+- [ ] Cards are responsive: on a phone screen, 2 cards appear per row (not 5)
+
+### A4. Recommendation links work
+- [ ] Click any card's "Voir l'annonce" button
+- [ ] Confirm: browser navigates to the correct product page on agromarket.cm
+- [ ] Confirm: the URL matches the product shown on the card
+
+### A5. Session cookie is set
+- [ ] Open DevTools → Application → Cookies
+- [ ] Confirm: cookie named `agri_session` exists
+- [ ] Confirm: cookie expiry is ~30 days from today
+
+### A6. Click tracking fires
+- [ ] Click a recommendation card
+- [ ] Open DevTools → Network tab, filter by "events"
+- [ ] Confirm: a POST request to `/api/v1/events` was sent after the click
+- [ ] Confirm: request body contains `event_type: "ad_click"` and a `product_id`
+
+---
+
+## Part B — User experience checks (tester alone, think-aloud)
+
+Give the device to the tester. Ask them to browse normally while thinking aloud.
+Do not coach them. Record their responses in the space provided.
+
+### B1. First impression
+Task: *"Open the homepage and tell me what you see."*
+
+Does the tester notice the recommendation widget without prompting?
+- [ ] Yes, noticed immediately
+- [ ] Yes, noticed after a few seconds
+- [ ] No, did not notice
+
+Tester comment: _________________________________________________________________
+
+### B2. Understanding
+Task: *"What do you think 'Recommandé pour vous' means? What is this section for?"*
+
+Did the tester understand the widget is personalised suggestions?
+- [ ] Yes, explained correctly
+- [ ] Partially understood
+- [ ] Did not understand
+
+Tester comment: _________________________________________________________________
+
+### B3. Relevance
+Task: *"Browse the site as you normally would for 2-3 minutes — look at some products you're interested in."*
+Then: *"Now look at the recommendations. Do any of these interest you?"*
+
+How many of the 5 cards were considered relevant?
+- [ ] 4-5 (high relevance)
+- [ ] 2-3 (moderate)
+- [ ] 0-1 (low relevance — investigate why)
+
+Tester comment: _________________________________________________________________
+
+### B4. Usability
+Task: *"Try to view one of the recommended products."*
+
+Did the tester successfully click through to a product page?
+- [ ] Yes, without confusion
+- [ ] Yes, after some hesitation
+- [ ] No — describe obstacle: ________________________________________________
+
+### B5. Mobile usability (test on phone if possible)
+- [ ] Widget is visible without scrolling sideways
+- [ ] Card text is readable without zooming
+- [ ] "Voir l'annonce" buttons are large enough to tap comfortably
+
+Tester comment: _________________________________________________________________
+
+### B6. Language
+- [ ] Widget labels appear in French when site language is French
+- [ ] Widget labels appear in English when site language is English (test by switching to `/en/`)
+
+---
+
+## Part C — Edge cases (developer, automated)
+
+### C1. API unavailable fallback
+- [ ] Stop the recommendation API container
+- [ ] Reload the homepage
+- [ ] Confirm: **page loads normally** — widget is simply absent (no error messages, no broken layout)
+- [ ] Restart the container
+
+### C2. Slow network (throttle to "Slow 3G" in DevTools)
+- [ ] Reload the homepage with throttling enabled
+- [ ] Confirm: page is usable before the widget loads
+- [ ] Confirm: widget appears within 8 seconds on a slow connection
+
+### C3. New user (no session cookie)
+- [ ] Open an incognito window
+- [ ] Navigate to homepage
+- [ ] Confirm: widget appears with 5 recommendations (popular fallback)
+- [ ] Confirm: session cookie is created
+
+### C4. Returning user (session with history)
+- [ ] View 3 product pages in a normal window
+- [ ] Navigate back to homepage
+- [ ] Confirm: viewed products do NOT appear in the recommendations (exclusion working)
+
+---
+
+## Part D — Sign-off
+
+### Pass/Fail summary
+
+| Section | Result | Notes |
+|---------|--------|-------|
+| A. Functional | PASS / FAIL | |
+| B. User experience | PASS / FAIL | |
+| C. Edge cases | PASS / FAIL | |
+
+### Issues found
+
+| # | Description | Severity (High/Med/Low) | Status |
+|---|-------------|------------------------|--------|
+| 1 | | | |
+| 2 | | | |
+| 3 | | | |
+
+### Overall verdict
+
+- [ ] **PASS** — Widget is ready for production deployment
+- [ ] **CONDITIONAL PASS** — Minor issues noted, can deploy with known limitations
+- [ ] **FAIL** — Blocking issues found, do not deploy until resolved
+
+Signed: ______________________   Date: ______________
+
+Developer sign-off: __________________   Date: ______________

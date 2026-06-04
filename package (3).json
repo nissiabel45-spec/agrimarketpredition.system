@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgriWidget — Local Test Page</title>
+
+  <!-- Minimal Agromarket-like page styles -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f4;
+      color: #1a1a1a;
+    }
+    .site-header {
+      background: #2d6a2d;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .site-logo { color: #fff; font-weight: 700; font-size: 18px; text-decoration: none; }
+    .site-nav  { display: flex; gap: 20px; margin-left: auto; }
+    .site-nav a { color: rgba(255,255,255,.8); font-size: 13px; text-decoration: none; }
+    .site-nav a:hover { color: #fff; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .page-title { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+    .ads-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    .ad-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .ad-card__img  { height: 120px; background: #e8f0e8; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+    .ad-card__body { padding: 12px; }
+    .ad-card__title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .ad-card__cat   { font-size: 11px; color: #666; }
+    .demo-banner {
+      background: #fffbe6;
+      border: 1px solid #f0d060;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 12px;
+      color: #7a5f00;
+      margin-bottom: 20px;
+    }
+    .demo-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .demo-controls button {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .demo-controls button:hover { background: #f0f0f0; }
+    .demo-controls button.active { background: #2d6a2d; color: #fff; border-color: #2d6a2d; }
+    .demo-log {
+      background: #1a1a1a;
+      color: #a0f0a0;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 11px;
+      margin-top: 24px;
+      min-height: 60px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .demo-log p { margin: 2px 0; }
+  </style>
+
+  <!-- Widget stylesheet -->
+  <link rel="stylesheet" href="agri-widget.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <a class="site-logo" href="#">🌱 AgroMarket.cm</a>
+    <nav class="site-nav">
+      <a href="#">Fruits & Légumes</a>
+      <a href="#">Agroalimentaire</a>
+      <a href="#">Traitement</a>
+      <a href="#">Sign in</a>
+    </nav>
+  </header>
+
+  <div class="container">
+
+    <div class="demo-banner">
+      ⚙️ <strong>Developer test page</strong> — The widget below calls the local mock API (port 5002).
+      Use the controls to simulate different user states.
+    </div>
+
+    <div class="demo-controls">
+      <button onclick="simulateNewUser()" class="active" id="btn-new">New visitor</button>
+      <button onclick="simulateViewedFruits()" id="btn-fruits">Viewed fruits</button>
+      <button onclick="simulateViewedOils()" id="btn-oils">Viewed oils</button>
+      <button onclick="simulateKnownUser()" id="btn-known">Known user (idx=3)</button>
+    </div>
+
+    <h1 class="page-title">Latest listings</h1>
+
+    <!-- Simulated existing Agromarket content (widget injects after this) -->
+    <div class="ads-grid" id="featured-ads">
+      <div class="ad-card">
+        <div class="ad-card__img">🥭</div>
+        <div class="ad-card__body">
+          <p class="ad-card__title">Mangues à vendre</p>
+          <p class="ad-card__cat">Fruits & Légumes</p>
+        </div>
+      </div>
+      <div class="ad-card">
+        <div class="ad-card__img">🌴</div>
+        <div class="ad-card__body">
+          <p class="ad-card__title">Palmeraie à vendre</p>
+          <p class="ad-card__cat">Plantations</p>
+        </div>
+      </div>
+      <div class="ad-card">
+        <div class="ad-card__img">🌿</div>
+        <div class="ad-card__body">
+          <p class="ad-card__title">Traitement végétaux</p>
+          <p class="ad-card__cat">Traitement</p>
+        </div>
+      </div>
+      <div class="ad-card">
+        <div class="ad-card__img">🫙</div>
+        <div class="ad-card__body">
+          <p class="ad-card__title">Huile de coco</p>
+          <p class="ad-card__cat">Agroalimentaire</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget is injected by agri-widget.js after #featured-ads -->
+
+    <div class="demo-log" id="demo-log">
+      <p>— AgriWidget demo log —</p>
+    </div>
+
+  </div>
+
+  <!-- Phase 1 tracker (same session cookie) -->
+  <script src="agri-tracker.js"></script>
+
+  <!-- Widget bootstrap (override config for local testing) -->
+  <script>
+    // Intercept the module before it boots to patch config
+    window.__AGRI_WIDGET_TEST__ = true;
+  </script>
+  <script src="agri-widget.js"></script>
+
+  <!-- Demo controls -->
+  <script>
+    var log = document.getElementById("demo-log");
+    function dlog(msg) {
+      var p = document.createElement("p");
+      p.textContent = "[" + new Date().toLocaleTimeString() + "] " + msg;
+      log.appendChild(p);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // Override fetch for local demo (mocks the Phase 3 API response)
+    var MOCK_PRODUCTS = {
+      fruits: [
+        {id:"2014",title:"Tomate fraîche à vendre",title_en:"Fresh tomatoes",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.91},
+        {id:"2026",title:"Avocats à vendre",title_en:"Avocados",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.78},
+        {id:"2101",title:"Ananas à vendre",title_en:"Pineapples",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.71},
+        {id:"2012",title:"Haricot à vendre",title_en:"Beans",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.64},
+        {id:"2130",title:"Poireau à vendre",title_en:"Leeks",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.58}
+      ],
+      oils: [
+        {id:"2139",title:"Huile de sésame",title_en:"Sesame oil",category:"agroalimentaire",category_label:"Food Transformation",url:"#",score:0.88},
+        {id:"2140",title:"Huile de ricin",title_en:"Castor oil",category:"agroalimentaire",category_label:"Food Transformation",url:"#",score:0.80},
+        {id:"2109",title:"Fufu à vendre",title_en:"Fufu",category:"agroalimentaire",category_label:"Food Transformation",url:"#",score:0.70},
+        {id:"2134",title:"Djansang à vendre",title_en:"Djansang seeds",category:"tubercules",category_label:"Other Products",url:"#",score:0.61},
+        {id:"2108",title:"Épices à vendre",title_en:"Spices",category:"tubercules",category_label:"Other Products",url:"#",score:0.52}
+      ],
+      default: [
+        {id:"2022",title:"Mangues à vendre",title_en:"Mangoes",category:"fruitsetlegumes",category_label:"Fruits & Veg",url:"#",score:0.85},
+        {id:"2096",title:"Poulets à vendre",title_en:"Chickens",category:"plantations",category_label:"Farming",url:"#",score:0.77},
+        {id:"2095",title:"Palmeraie à vendre",title_en:"Palm plantation",category:"plantations",category_label:"Farming",url:"#",score:0.69},
+        {id:"2023",title:"Crevettes sèches",title_en:"Dried shrimp",category:"elevage1",category_label:"Aquatic",url:"#",score:0.60},
+        {id:"2106",title:"Cola Bafia à vendre",title_en:"Kola nuts",category:"sylviculture",category_label:"Forestry",url:"#",score:0.50}
+      ]
+    };
+
+    var currentProducts = "default";
+
+    var _realFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      if (typeof url === "string" && url.includes("/recommendations")) {
+        dlog("API call → " + url.split("?")[0]);
+        return new Promise(function(resolve) {
+          setTimeout(function() {
+            var products = MOCK_PRODUCTS[currentProducts];
+            var body = JSON.stringify({ session_id: "demo", count: products.length, recommendations: products });
+            dlog("← " + products.length + " recommendations (" + currentProducts + ")");
+            resolve(new Response(body, { status: 200, headers: {"Content-Type":"application/json"} }));
+          }, 600);
+        });
+      }
+      if (typeof url === "string" && url.includes("/feedback")) {
+        var data = JSON.parse((opts && opts.body) || "{}");
+        dlog("Feedback: product=" + data.product_id + " signal=" + data.signal);
+        return Promise.resolve(new Response("{}", {status:201}));
+      }
+      return _realFetch.apply(this, arguments);
+    };
+
+    function clearWidget() {
+      var w = document.getElementById("agri-rec-widget");
+      if (w) w.remove();
+      document.querySelectorAll(".demo-controls button").forEach(function(b){ b.classList.remove("active"); });
+    }
+
+    function simulateNewUser() {
+      clearWidget(); currentProducts = "default";
+      document.getElementById("btn-new").classList.add("active");
+      sessionStorage.removeItem("agri_viewed");
+      dlog("→ Simulating new visitor (no history)");
+      boot();
+    }
+    function simulateViewedFruits() {
+      clearWidget(); currentProducts = "fruits";
+      document.getElementById("btn-fruits").classList.add("active");
+      sessionStorage.setItem("agri_viewed", JSON.stringify(["2022","2026"]));
+      dlog("→ Simulating user who viewed mangoes + avocados");
+      boot();
+    }
+    function simulateViewedOils() {
+      clearWidget(); currentProducts = "oils";
+      document.getElementById("btn-oils").classList.add("active");
+      sessionStorage.setItem("agri_viewed", JSON.stringify(["2098","2139"]));
+      dlog("→ Simulating user who viewed coconut + sesame oil");
+      boot();
+    }
+    function simulateKnownUser() {
+      clearWidget(); currentProducts = "default";
+      document.getElementById("btn-known").classList.add("active");
+      dlog("→ Simulating known user (idx=3) with purchase history");
+      boot();
+    }
+    dlog("Test page ready. Click a button above to simulate a user state.");
+  </script>
+
+</body>
+</html>

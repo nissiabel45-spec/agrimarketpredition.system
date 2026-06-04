@@ -1,0 +1,137 @@
+"""
+AgriMarket Recommendation Feature
+Phase 2: Unit Tests for Recommendation Model
+Author: AJEICHEK ABEL NISSI (CT23A010)
+
+Run:
+    pip install pytest numpy scipy scikit-learn
+    pytest tests/ -v
+"""
+
+import numpy as np
+import pytest
+from scipy.sparse import csr_matrix
+
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from train_model import AgriRecommender
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def small_matrix():
+    """
+    Tiny 5-user × 6-product interaction matrix for fast tests.
+    Values represent normalised interaction scores [0, 1].
+    """
+    data = np.array([
+        [1.0, 0.5, 0.0, 0.0, 0.0, 0.0],  # user 0: likes products 0,1
+        [0.8, 1.0, 0.0, 0.0, 0.0, 0.0],  # user 1: likes products 0,1
+        [0.0, 0.0, 1.0, 0.5, 0.0, 0.0],  # user 2: likes products 2,3
+        [0.0, 0.0, 0.8, 1.0, 0.0, 0.0],  # user 3: likes products 2,3
+        [0.0, 0.0, 0.0, 0.0, 1.0, 1.0],  # user 4: likes products 4,5
+    ])
+    return csr_matrix(data)
+
+
+@pytest.fixture
+def trained_model(small_matrix):
+    model = AgriRecommender(n_factors=3)
+    model.fit(small_matrix)
+    return model
+
+
+# ---------------------------------------------------------------------------
+# Training tests
+# ---------------------------------------------------------------------------
+
+def test_model_fits_without_error(small_matrix):
+    model = AgriRecommender(n_factors=3)
+    model.fit(small_matrix)
+    assert model.is_trained
+
+
+def test_user_factors_shape(trained_model, small_matrix):
+    n_users = small_matrix.shape[0]
+    assert trained_model.user_factors.shape == (n_users, 3)
+
+
+def test_item_factors_shape(trained_model, small_matrix):
+    n_products = small_matrix.shape[1]
+    assert trained_model.item_factors.shape == (3, n_products)
+
+
+# ---------------------------------------------------------------------------
+# Prediction tests
+# ---------------------------------------------------------------------------
+
+def test_predict_scores_length(trained_model, small_matrix):
+    n_products = small_matrix.shape[1]
+    scores = trained_model.predict_scores(0)
+    assert len(scores) == n_products
+
+
+def test_predict_scores_returns_floats(trained_model):
+    scores = trained_model.predict_scores(0)
+    assert scores.dtype in [np.float32, np.float64]
+
+
+def test_predict_raises_if_not_trained(small_matrix):
+    model = AgriRecommender(n_factors=3)
+    with pytest.raises(RuntimeError, match="fit\\(\\)"):
+        model.predict_scores(0)
+
+
+# ---------------------------------------------------------------------------
+# Recommendation tests
+# ---------------------------------------------------------------------------
+
+def test_recommend_returns_k_items(trained_model):
+    recs = trained_model.recommend(user_idx=0, top_k=3)
+    assert len(recs) == 3
+
+
+def test_recommend_excludes_seen_products(trained_model):
+    seen = [0, 1]
+    recs = trained_model.recommend(user_idx=0, top_k=3, already_seen=seen)
+    for r in recs:
+        assert r not in seen
+
+
+def test_collaborative_signal(trained_model):
+    """
+    Users 0 and 1 both liked products 0 and 1.
+    User 2 liked products 2 and 3.
+    Recommendations for user 0 should be closer to products 0-1 space,
+    and dissimilar from user 4's preferences (products 4-5).
+    """
+    recs_user0 = set(trained_model.recommend(0, top_k=3))
+    recs_user4 = set(trained_model.recommend(4, top_k=3))
+    # Users 0 and 4 have completely different preferences — recs should differ
+    assert recs_user0 != recs_user4
+
+
+# ---------------------------------------------------------------------------
+# Cold-start tests
+# ---------------------------------------------------------------------------
+
+def test_cold_start_returns_k_items(trained_model):
+    recs = trained_model.recommend_for_new_user(
+        viewed_product_indices=[2], top_k=3
+    )
+    assert len(recs) == 3
+
+
+def test_cold_start_excludes_viewed(trained_model):
+    viewed = [2]
+    recs = trained_model.recommend_for_new_user(viewed, top_k=3)
+    assert 2 not in recs
+
+
+def test_cold_start_raises_if_not_trained():
+    model = AgriRecommender(n_factors=3)
+    with pytest.raises(RuntimeError, match="fit\\(\\)"):
+        model.recommend_for_new_user([0])

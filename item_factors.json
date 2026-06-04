@@ -1,0 +1,18 @@
+# AgriMarket Recommendation Feature — environment variables
+# Phase 5 | Author: AJEICHEK ABEL NISSI (CT23A010)
+#
+# Copy this file to .env and fill in your real values.
+# NEVER commit .env to git — it contains secrets.
+
+# ---- Database (existing Agromarket MySQL) ----
+DB_HOST=host.docker.internal    # use host.docker.internal to reach host DB from container
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_NAME=agromarket
+
+# ---- Flask ----
+FLASK_ENV=production            # change to 'development' for debug mode locally
+
+# ---- Optional: override service ports ----
+# TRACKER_PORT=5001
+# API_PORT=5002

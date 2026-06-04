@@ -1,0 +1,33 @@
+# AgriMarket Recommendation API — Docker image (Node.js)
+# Phase 3 | Author: AJEICHEK ABEL NISSI (CT23A010)
+# Converted from Python/Flask to Node.js/Express
+# ML model artifacts (user_factors.json, item_factors.json) are unchanged.
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first (layer cache)
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy application code
+COPY app.js .
+COPY recommender_service.js .
+
+# Copy model artifacts (built by Phase 2, exported to JSON)
+COPY models/ ./models/
+COPY data/   ./data/
+
+# Non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser /app
+USER appuser
+
+EXPOSE 5002
+
+# Health check — Docker will restart the container if this fails
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:5002/health || exit 1
+
+CMD ["node", "app.js"]

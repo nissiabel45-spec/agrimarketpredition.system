@@ -1,0 +1,110 @@
+# AgriMarket Recommendation Feature
+# Phase 5: Docker Compose — runs all services together (Node.js)
+# Author: AJEICHEK ABEL NISSI (CT23A010)
+#
+# Converted from Python/Flask to Node.js/Express.
+# Docker deployment structure is UNCHANGED.
+#
+# Usage:
+#   cp .env.example .env        # fill in DB credentials
+#   docker compose up -d        # start all services
+#   docker compose logs -f      # watch logs
+#   docker compose down         # stop
+
+version: "3.9"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Phase 1: Event Tracking API (Node.js/Express)
+  # Receives user interaction events from the browser (agri-tracker.js)
+  # ---------------------------------------------------------------------------
+  agri-tracker:
+    image: agri-tracker:latest
+    build:
+      context: ../phase1_tracking/api
+      dockerfile: Dockerfile
+    container_name: agri-tracker
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      DB_HOST:     ${DB_HOST}
+      DB_USER:     ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME:     ${DB_NAME}
+      NODE_ENV:    ${NODE_ENV:-production}
+      PORT:        5001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets container reach host MySQL
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/health"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 10s
+    networks:
+      - agri-net
+
+  # ---------------------------------------------------------------------------
+  # Phase 3: Recommendation API (Node.js/Express)
+  # Loads the Phase 2 model (JSON format) and serves personalised suggestions
+  # ML model is UNCHANGED — only the serving layer is converted to Node.js
+  # ---------------------------------------------------------------------------
+  agri-api:
+    image: agri-api:latest
+    build:
+      context: ../phase3_api
+      dockerfile: Dockerfile
+    container_name: agri-api
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      MODELS_DIR: /app/models
+      DATA_DIR:   /app/data
+      NODE_ENV:   ${NODE_ENV:-production}
+      PORT:       5002
+    volumes:
+      # Mount model artifacts so you can update them without rebuilding
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5002/health"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+      start_period: 15s
+    networks:
+      - agri-net
+
+  # ---------------------------------------------------------------------------
+  # Nginx: Serves the Phase 4 widget static files (agri-widget.js + .css)
+  # Accessible at http://your-server.com/static/agri-widget.js
+  # UNCHANGED from original
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: agri-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../phase4_widget:/usr/share/nginx/html/static:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout:  5s
+      retries:  3
+    networks:
+      - agri-net
+    depends_on:
+      agri-tracker:
+        condition: service_healthy
+      agri-api:
+        condition: service_healthy
+
+networks:
+  agri-net:
+    driver: bridge

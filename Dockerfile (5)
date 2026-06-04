@@ -1,0 +1,18 @@
+{
+  "name": "agri-widget-tests",
+  "version": "1.0.0",
+  "description": "AgriMarket recommendation widget — Phase 4 tests",
+  "private": true,
+  "scripts": {
+    "test": "jest --verbose",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"]
+  }
+}

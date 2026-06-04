@@ -1,0 +1,365 @@
+/**
+ * AgriMarket Recommendation Widget
+ * Phase 4 — Frontend Widget
+ * Author: AJEICHEK ABEL NISSI (CT23A010)
+ *
+ * A self-contained widget that fetches personalised product recommendations
+ * from the Phase 3 API and renders a carousel on the Agromarket homepage.
+ *
+ * INSTALLATION — add one line to Agromarket's HTML, just before </body>:
+ *   <script src="https://your-server.com/static/agri-widget.js"></script>
+ *
+ * The widget auto-detects the page type, injects itself into the DOM,
+ * fetches recommendations, and renders a live product carousel.
+ */
+
+(function () {
+  "use strict";
+
+  /* -------------------------------------------------------------------------
+   * Config — update API_BASE_URL before deploying
+   * ---------------------------------------------------------------------- */
+  var CONFIG = {
+    API_BASE_URL:     "https://your-recommender-server.com",
+    SESSION_COOKIE:   "agri_session",
+    SESSION_DAYS:     30,
+    TOP_K:            5,
+    WIDGET_ID:        "agri-rec-widget",
+    INJECT_AFTER:     ".classifieds-list, .ads-grid, #featured-ads, main",
+    TRACKER_URL:      "https://your-recommender-server.com/api/v1/events/batch",
+    REFRESH_LABEL:    "Refresh",
+    DEBUG:            false
+  };
+
+  /* -------------------------------------------------------------------------
+   * Session
+   * ---------------------------------------------------------------------- */
+  function getCookie(name) {
+    var m = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+    return m ? m.pop() : null;
+  }
+
+  function setCookie(name, value, days) {
+    var d = new Date();
+    d.setTime(d.getTime() + days * 864e5);
+    document.cookie = name + "=" + value + ";expires=" + d.toUTCString() + ";path=/;SameSite=Lax";
+  }
+
+  function getSession() {
+    var id = getCookie(CONFIG.SESSION_COOKIE);
+    if (!id) {
+      id = "s_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
+      setCookie(CONFIG.SESSION_COOKIE, id, CONFIG.SESSION_DAYS);
+    }
+    return id;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Page context — extract viewed product IDs from current URL and localStorage
+   * ---------------------------------------------------------------------- */
+  function getViewedProducts() {
+    var viewed = [];
+
+    // Read from sessionStorage — Phase 1 tracker writes here too
+    try {
+      var stored = sessionStorage.getItem("agri_viewed");
+      if (stored) viewed = JSON.parse(stored);
+    } catch (e) {}
+
+    // Also grab the current page's product ID if on a product page
+    var match = window.location.pathname.match(/\/en\/[^/]+\/[^/]+-(\d+)\.html/);
+    if (match && viewed.indexOf(match[1]) === -1) {
+      viewed.push(match[1]);
+      try { sessionStorage.setItem("agri_viewed", JSON.stringify(viewed.slice(-20))); } catch(e) {}
+    }
+    return viewed;
+  }
+
+  /* -------------------------------------------------------------------------
+   * API call
+   * ---------------------------------------------------------------------- */
+  function fetchRecommendations(sessionId, viewedIds, callback) {
+    var params = new URLSearchParams({
+      session_id: sessionId,
+      top_k:      CONFIG.TOP_K
+    });
+    if (viewedIds.length > 0) {
+      params.set("viewed", viewedIds.join(","));
+    }
+
+    var url = CONFIG.API_BASE_URL + "/api/v1/recommendations?" + params.toString();
+
+    fetch(url, { method: "GET", headers: { "Accept": "application/json" } })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        callback(null, data.recommendations || []);
+      })
+      .catch(function (err) {
+        if (CONFIG.DEBUG) console.warn("[AgriWidget] API error:", err);
+        callback(err, []);
+      });
+  }
+
+  function sendFeedback(sessionId, productId, signal) {
+    fetch(CONFIG.API_BASE_URL + "/api/v1/recommendations/feedback", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ session_id: sessionId, product_id: productId, signal: signal }),
+      keepalive: true
+    }).catch(function () {});
+  }
+
+  function trackClick(productId, productUrl) {
+    var body = JSON.stringify({
+      events: [{
+        event_type: "ad_click",
+        session_id: getSession(),
+        product_id: productId,
+        page_url:   productUrl
+      }]
+    });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(CONFIG.TRACKER_URL, new Blob([body], { type: "application/json" }));
+    }
+  }
+
+  /* -------------------------------------------------------------------------
+   * DOM helpers
+   * ---------------------------------------------------------------------- */
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === "className") node.className = attrs[k];
+      else if (k === "textContent") node.textContent = attrs[k];
+      else if (k === "innerHTML") node.innerHTML = attrs[k];
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+    return node;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Render a single product card
+   * ---------------------------------------------------------------------- */
+  var CATEGORY_EMOJI = {
+    fruitsetlegumes: "🥬",
+    agroalimentaire: "🫙",
+    tubercules:      "🌾",
+    traitement:      "🌿",
+    plantations:     "🌴",
+    sylviculture:    "🪵",
+    elevage1:        "🦐"
+  };
+
+  function buildProductCard(product, sessionId) {
+    var emoji = CATEGORY_EMOJI[product.category] || "🌱";
+    var scorePercent = Math.round(Math.min(Math.max(product.score * 100, 5), 99));
+
+    var imgDiv = el("div", { className: "agri-rec__img" }, [
+      el("span", { textContent: emoji, className: "agri-rec__emoji" })
+    ]);
+
+    var titleEl  = el("p",    { className: "agri-rec__title",    textContent: product.title_en || product.title });
+    var catEl    = el("span", { className: "agri-rec__category", textContent: product.category_label || product.category });
+    var barFill  = el("div",  { className: "agri-rec__bar-fill", style: "width:" + scorePercent + "%" });
+    var bar      = el("div",  { className: "agri-rec__bar" }, [barFill]);
+    var bodyDiv  = el("div",  { className: "agri-rec__body" }, [titleEl, catEl, bar]);
+
+    var card = el("a", {
+      href:      product.url,
+      className: "agri-rec__card",
+      target:    "_blank",
+      rel:       "noopener"
+    }, [imgDiv, bodyDiv]);
+
+    card.addEventListener("click", function (e) {
+      trackClick(product.id, product.url);
+      sendFeedback(sessionId, product.id, "positive");
+    });
+
+    return card;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Render the full widget
+   * ---------------------------------------------------------------------- */
+  function buildWidget(recommendations, sessionId) {
+    var widgetEl = el("section", {
+      id:        CONFIG.WIDGET_ID,
+      className: "agri-rec",
+      role:      "region",
+      "aria-label": "Recommended products"
+    });
+
+    var headerLeft = el("div", { className: "agri-rec__header-left" }, [
+      el("span", { className: "agri-rec__icon", innerHTML: "&#10024;", "aria-hidden": "true" }),
+      el("h2",   { className: "agri-rec__heading", textContent: "Recommended for you" })
+    ]);
+
+    var subtitle = el("p", {
+      className:   "agri-rec__subtitle",
+      textContent: "Based on your recent browsing"
+    });
+
+    var refreshBtn = el("button", {
+      className:  "agri-rec__btn agri-rec__btn--ghost",
+      type:       "button",
+      "aria-label": "Refresh recommendations"
+    }, [
+      el("span", { innerHTML: "&#8635; ", "aria-hidden": "true" }),
+      el("span", { textContent: CONFIG.REFRESH_LABEL })
+    ]);
+
+    refreshBtn.addEventListener("click", function () {
+      widgetEl.setAttribute("data-state", "loading");
+      var grid = widgetEl.querySelector(".agri-rec__grid");
+      if (grid) grid.innerHTML = renderSkeleton();
+      var viewed = getViewedProducts();
+      fetchRecommendations(sessionId, viewed, function (err, recs) {
+        widgetEl.setAttribute("data-state", "ready");
+        if (!err && recs.length > 0) {
+          var newGrid = widgetEl.querySelector(".agri-rec__grid");
+          if (newGrid) {
+            newGrid.innerHTML = "";
+            recs.forEach(function (p) { newGrid.appendChild(buildProductCard(p, sessionId)); });
+          }
+        }
+      });
+    });
+
+    var headerRight = el("div", { className: "agri-rec__header-right" }, [refreshBtn]);
+    var headerTop   = el("div", { className: "agri-rec__header-top"   }, [headerLeft, headerRight]);
+    var header      = el("div", { className: "agri-rec__header"       }, [headerTop, subtitle]);
+
+    var grid = el("div", { className: "agri-rec__grid" });
+    recommendations.forEach(function (p) {
+      grid.appendChild(buildProductCard(p, sessionId));
+    });
+
+    var reasonText = el("p", {
+      className:   "agri-rec__reason",
+      textContent: "Why these? You recently viewed products in similar categories."
+    });
+
+    var notInterested = el("button", {
+      className: "agri-rec__btn agri-rec__btn--muted",
+      type:      "button"
+    }, [el("span", { textContent: "Not relevant?" })]);
+
+    notInterested.addEventListener("click", function () {
+      recommendations.forEach(function (p) { sendFeedback(sessionId, p.id, "negative"); });
+      refreshBtn.click();
+    });
+
+    var footer = el("div", { className: "agri-rec__footer" }, [reasonText, notInterested]);
+
+    widgetEl.appendChild(header);
+    widgetEl.appendChild(grid);
+    widgetEl.appendChild(footer);
+
+    return widgetEl;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Skeleton loader — shown while the API call is in-flight
+   * ---------------------------------------------------------------------- */
+  function renderSkeleton() {
+    var html = "";
+    for (var i = 0; i < CONFIG.TOP_K; i++) {
+      html += '<div class="agri-rec__card agri-rec__card--skeleton">' +
+              '<div class="agri-rec__img agri-rec__img--skeleton"></div>' +
+              '<div class="agri-rec__body">' +
+              '<div class="agri-rec__skeleton-line agri-rec__skeleton-line--title"></div>' +
+              '<div class="agri-rec__skeleton-line agri-rec__skeleton-line--cat"></div>' +
+              '</div></div>';
+    }
+    return html;
+  }
+
+  function buildLoadingWidget() {
+    var widgetEl = el("section", {
+      id:           CONFIG.WIDGET_ID,
+      className:    "agri-rec",
+      "data-state": "loading",
+      role:         "region",
+      "aria-label": "Recommended products loading"
+    });
+    var heading = el("h2", { className: "agri-rec__heading", textContent: "Recommended for you" });
+    var grid    = el("div", { className: "agri-rec__grid",   innerHTML:   renderSkeleton() });
+    widgetEl.appendChild(heading);
+    widgetEl.appendChild(grid);
+    return widgetEl;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Inject widget into the page
+   * ---------------------------------------------------------------------- */
+  function injectWidget(widgetEl) {
+    var selectors = CONFIG.INJECT_AFTER.split(",").map(function (s) { return s.trim(); });
+    for (var i = 0; i < selectors.length; i++) {
+      var target = document.querySelector(selectors[i]);
+      if (target) {
+        target.parentNode.insertBefore(widgetEl, target.nextSibling);
+        return true;
+      }
+    }
+    // Fallback: append to body
+    document.body.appendChild(widgetEl);
+    return true;
+  }
+
+  /* -------------------------------------------------------------------------
+   * Boot
+   * ---------------------------------------------------------------------- */
+  function boot() {
+    // Don't show on non-homepage pages (optional — remove to show everywhere)
+    var path = window.location.pathname;
+    var isHomepage = (path === "/en/" || path === "/en" || path === "/en/index.html");
+    var isCategoryPage = /\/en\/[a-z0-9_]+\/?$/.test(path) && !path.match(/\d+\.html/);
+
+    if (!isHomepage && !isCategoryPage) {
+      if (CONFIG.DEBUG) console.log("[AgriWidget] Skipping — not homepage or category page.");
+      return;
+    }
+
+    // Don't inject twice
+    if (document.getElementById(CONFIG.WIDGET_ID)) return;
+
+    var sessionId = getSession();
+    var viewed    = getViewedProducts();
+
+    // Show skeleton immediately, replace when API responds
+    var loadingEl = buildLoadingWidget();
+    injectWidget(loadingEl);
+
+    fetchRecommendations(sessionId, viewed, function (err, recs) {
+      var existingWidget = document.getElementById(CONFIG.WIDGET_ID);
+
+      if (err || recs.length === 0) {
+        // Remove skeleton on error — fail silently
+        if (existingWidget) existingWidget.remove();
+        return;
+      }
+
+      var widgetEl = buildWidget(recs, sessionId);
+      if (existingWidget) {
+        existingWidget.replaceWith(widgetEl);
+      } else {
+        injectWidget(widgetEl);
+      }
+
+      if (CONFIG.DEBUG) console.log("[AgriWidget] Rendered", recs.length, "recommendations.");
+    });
+  }
+
+  // Boot after DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+
+})();

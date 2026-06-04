@@ -1,0 +1,86 @@
+"""
+AgriMarket Recommendation Feature
+Phase 2: Real Data Loader (alternative to synthetic generator)
+Author: AJEICHEK ABEL NISSI (CT23A010)
+
+After Phase 1 has collected real user events, use this script
+to build the interaction matrix from actual data.
+
+Run:
+    python load_real_data.py
+    # Creates the same data/interaction_matrix.csv format as generate_data.py
+"""
+
+import os
+import pandas as pd
+import mysql.connector
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ---------------------------------------------------------------------------
+# Event type → score weight
+# How much each event type contributes to the interaction score
+# ---------------------------------------------------------------------------
+
+EVENT_WEIGHTS = {
+    "product_view":    1,
+    "ad_click":        2,
+    "contact_seller":  3,
+    "category_view":   0,   # category views don't map to specific products
+    "search":          0,
+}
+
+def load_from_db():
+    conn = mysql.connector.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "agromarket"),
+    )
+
+    # Pull all product-level events (skip category-only events)
+    query = """
+        SELECT
+            e.session_id   AS user_id,
+            p.external_id  AS product_id,
+            p.id           AS product_idx,
+            e.event_type,
+            p.category
+        FROM user_events e
+        JOIN agri_products p ON e.product_id = p.id
+        WHERE e.event_type IN ('product_view', 'ad_click', 'contact_seller')
+          AND e.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+
+    if df.empty:
+        raise ValueError("No events found. Run the synthetic generator instead.")
+
+    # Map session_id → integer user_id for the matrix
+    sessions = {s: i for i, s in enumerate(df["user_id"].unique())}
+    df["user_id"] = df["user_id"].map(sessions)
+
+    # Aggregate: sum event weights per (user, product)
+    df["score"] = df["event_type"].map(EVENT_WEIGHTS)
+    aggregated = (
+        df.groupby(["user_id", "product_id", "product_idx", "category"])["score"]
+        .sum()
+        .reset_index()
+    )
+
+    # Cap score at 3 (same scale as synthetic data)
+    aggregated["score"] = aggregated["score"].clip(upper=3)
+
+    os.makedirs("data", exist_ok=True)
+    aggregated.to_csv("data/interaction_matrix.csv", index=False)
+
+    print(f"Loaded {len(aggregated):,} interactions from real event data")
+    print(f"  Unique sessions: {aggregated['user_id'].nunique()}")
+    print(f"  Products seen:   {aggregated['product_id'].nunique()}")
+    return aggregated
+
+
+if __name__ == "__main__":
+    load_from_db()

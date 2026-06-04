@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "agri-api",
+
+  "installCommand": "npm ci --omit=dev",
+  "buildCommand": "",
+
+  "functions": {
+    "app.js": {
+      "runtime": "nodejs20.x",
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "models/**,data/**"
+    }
+  },
+
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/app.js" }
+  ],
+
+  "headers": [
+    {
+      "source": "/health",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache" }
+      ]
+    }
+  ]
+}
